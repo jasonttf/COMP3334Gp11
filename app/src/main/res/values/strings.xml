@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">COMP3334 Gp11</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="password_again">Enter password again</string>
+    <string name="email">E-mail</string>
+    <string name="toLogin">Already have an account</string>
+    <string name="login">Login</string>
+    <string name="noAC">Don\'t have an account</string>
+    <string name="selectPic">Select your image</string>
+    <string name="new_chat">New Chat</string>
+    <string name="signOut">Sign Out</string>
+</resources>
