@@ -7,4 +7,12 @@
         android:layout_height="match_parent"
         tools:context=".ContactActivity">
 
+    <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/contact_allUser"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" android:layout_marginTop="0dp"
+            app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent"
+            android:layout_marginStart="0dp" app:layout_constraintEnd_toEndOf="parent" android:layout_marginEnd="0dp"
+            android:layout_marginBottom="0dp" app:layout_constraintBottom_toBottomOf="parent"/>
 </androidx.constraintlayout.widget.ConstraintLayout>

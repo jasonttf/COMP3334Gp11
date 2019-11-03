@@ -31,7 +31,7 @@ class LoginActivity : AppCompatActivity() {
                 startActivity(Intent(this, MessengerActivity::class.java))
             }
         }.addOnFailureListener {
-            Log.e("Login", "Error: ${it.message}")
+            Log.e("LoginActivity", "Error: ${it.message}")
         }
     }
 }
