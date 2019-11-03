@@ -61,7 +61,7 @@
             android:layout_marginTop="12dp"
             app:layout_constraintHorizontal_bias="0.498"/>
     <Button
-            android:text="Register"
+            android:text="@string/register"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:id="@+id/register_regButton"
@@ -79,15 +79,15 @@
             app:layout_constraintEnd_toEndOf="parent"
             android:layout_marginEnd="8dp"
             app:layout_constraintStart_toStartOf="parent"
-            android:layout_marginStart="8dp" app:layout_constraintHorizontal_bias="0.42"
-            android:layout_marginTop="12dp"/>
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="20dp"/>
     <ImageView
             android:layout_width="157dp"
             android:layout_height="146dp" app:srcCompat="@android:color/holo_blue_dark"
             android:id="@+id/register_userPic" app:layout_constraintEnd_toEndOf="parent"
             android:layout_marginEnd="8dp" app:layout_constraintStart_toStartOf="parent"
-            android:layout_marginStart="8dp" app:layout_constraintHorizontal_bias="0.498"
-            android:layout_marginTop="152dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="60dp"
             app:layout_constraintTop_toTopOf="parent"/>
     <TextView
             android:text="@string/selectPic"

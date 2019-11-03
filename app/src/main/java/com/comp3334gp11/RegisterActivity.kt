@@ -4,10 +4,9 @@ import android.app.Activity
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.content.Intent
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
-import android.provider.MediaStore
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
@@ -45,9 +44,9 @@ class RegisterActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 0 && resultCode == Activity.RESULT_OK && data != null) {
             userPicUri = data.data
-            val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, userPicUri)
-            val bitmapDrawable = BitmapDrawable(bitmap)
-            register_userPic.setBackgroundDrawable(bitmapDrawable)
+            register_userPic.setImageURI(userPicUri)
+            register_selectPic.visibility = View.INVISIBLE
+            register_selectPic.isClickable = false
         }
     }
 
@@ -56,7 +55,6 @@ class RegisterActivity : AppCompatActivity() {
         val email = register_email.text.toString()
         val password = register_password.text.toString()
         val passwordAgain = register_password_again.text.toString()
-        var picUrl: String
         if (email.isEmpty() || password.isEmpty() || passwordAgain.isEmpty()) {
             Toast.makeText(this, "Please enter the email and password", Toast.LENGTH_LONG).show()
         }
@@ -67,55 +65,52 @@ class RegisterActivity : AppCompatActivity() {
             FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password).addOnCompleteListener {
                 if(it.isSuccessful) {
                     Toast.makeText(this, "Account created successfully", Toast.LENGTH_LONG).show()
-                    picUrl = uploadUserPic()
-                    val recorded = recordUser(username, email, password, picUrl)
-                    if(recorded) 
-                        startMesenger()
+                    uploadUserPic(username)
+                    startMessenger()
                 }
             }.addOnFailureListener {
                 Toast.makeText(this, "Account not created", Toast.LENGTH_LONG).show()
-                Log.e("Register", "Error: ${it.message}")
+                Log.e("RegisterActivity", "Error: ${it.message}")
             }
         }
     }
 
-    private fun uploadUserPic(): String {
-        var picUrl = ""
+    private fun uploadUserPic(username: String) {
         if (userPicUri != null) { 
             val filename = UUID.randomUUID().toString()
             val picRef = FirebaseStorage.getInstance().getReference("/images/$filename")
             picRef.putFile(userPicUri!!).addOnSuccessListener { 
-                picRef.downloadUrl.addOnSuccessListener { 
-                    picUrl = it.toString()
+                picRef.downloadUrl.addOnSuccessListener {
+                    recordUser(username, it.toString())
                 }.addOnFailureListener { 
-                    Log.e("Register", "Error: ${it.message}")
+                    Log.e("RegisterActivity", "Error: ${it.message}")
+                }.addOnFailureListener {
+                    Log.e("RegisterActivity", "Error: ${it.message}")
                 }
             }.addOnFailureListener {
-                Log.e("Register", "Error: ${it.message}")
+                Log.e("RegisterActivity", "Error: ${it.message}")
             }
         }
-        return picUrl
     }
 
-    private fun recordUser(username: String, email: String, password: String, picUrl: String):Boolean {
-        var recorded = false
+    private fun recordUser(username: String, picUrl: String) {
         val uid = FirebaseAuth.getInstance().uid ?: ""
         val userRef = FirebaseDatabase.getInstance().getReference("/users/$uid")
-        val user = User(uid, username, email, password, picUrl)
+        val user = User(uid, username, picUrl)
         userRef.setValue(user).addOnSuccessListener {
-            Log.e("Register", "Saved user: $user")
-            recorded = true
+            Log.e("RegisterActivity", "Saved user: $user")
         }.addOnFailureListener {
-            Log.e("Register", "Error: ${it.message}")
+            Log.e("RegisterActivity", "Error: ${it.message}")
         }
-        return recorded
     }
     
-    private fun startMesenger() {
+    private fun startMessenger() {
         val intent = Intent(this, MessengerActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TASK.or(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
     }
 }
 
-class User(val uid: String, val username: String, val email: String, val password: String, val userPicUrl: String)
+class User(val uid: String, val username: String, val userPicUrl: String) {
+    constructor(): this("", "", "")
+}

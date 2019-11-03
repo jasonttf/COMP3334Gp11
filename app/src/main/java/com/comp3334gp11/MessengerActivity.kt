@@ -6,6 +6,9 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import com.google.firebase.auth.FirebaseAuth
+import com.xwray.groupie.GroupAdapter
+import com.xwray.groupie.GroupieViewHolder
+import kotlinx.android.synthetic.main.activity_messenger.*
 
 class MessengerActivity : AppCompatActivity() {
 
@@ -14,6 +17,7 @@ class MessengerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_messenger)
 
         verifyUserStatus()
+        showMassages()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -41,5 +45,11 @@ class MessengerActivity : AppCompatActivity() {
             intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TASK.or(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         }
+    }
+
+    private fun showMassages() {
+        val adapter = GroupAdapter<GroupieViewHolder>()
+
+        messenger_allMessage.adapter = adapter
     }
 }
