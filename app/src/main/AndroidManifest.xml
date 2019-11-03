@@ -22,14 +22,14 @@
                     android:value=".MessengerActivity"/>
         </activity>
         <activity android:name=".LoginActivity"/>
-        <activity android:name=".RegisterActivity">
+        <activity android:name=".MessengerActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
 
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <activity android:name=".MessengerActivity">
+        <activity android:name=".RegisterActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
 

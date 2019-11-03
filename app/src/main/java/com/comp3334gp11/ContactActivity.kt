@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -26,7 +27,7 @@ class ContactActivity : AppCompatActivity() {
     }
 
     companion object {
-        val USER = "USER"
+        const val USER = "USER"
     }
 
     private fun showContact() {
@@ -40,9 +41,9 @@ class ContactActivity : AppCompatActivity() {
             override fun onDataChange(p0: DataSnapshot) {
                 p0.children.forEach {
                     val user = it.getValue(User::class.java)
-                    Log.e("ContactActivity", user.toString())
                     if (user != null) {
-                        contactAdapter.add(UsersItem(user))
+                        if (user.uid  != FirebaseAuth.getInstance().uid)
+                            contactAdapter.add(UsersItem(user))
                     }
                 }
                 contactAdapter.setOnItemClickListener { item, view ->
