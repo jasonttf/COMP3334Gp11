@@ -1,5 +1,6 @@
 package com.comp3334gp11
 
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
@@ -24,8 +25,12 @@ class ContactActivity : AppCompatActivity() {
         showContact()
     }
 
+    companion object {
+        val USER = "USER"
+    }
+
     private fun showContact() {
-        val adapter = GroupAdapter<GroupieViewHolder>()
+        val contactAdapter = GroupAdapter<GroupieViewHolder>()
         val usersRef = FirebaseDatabase.getInstance().getReference("/users")
         usersRef.addListenerForSingleValueEvent(object: ValueEventListener {
             override fun onCancelled(p0: DatabaseError) {
@@ -37,12 +42,19 @@ class ContactActivity : AppCompatActivity() {
                     val user = it.getValue(User::class.java)
                     Log.e("ContactActivity", user.toString())
                     if (user != null) {
-                        adapter.add(UsersItem(user))
+                        contactAdapter.add(UsersItem(user))
                     }
+                }
+                contactAdapter.setOnItemClickListener { item, view ->
+                    val selected = item as UsersItem
+                    val intent = Intent(view.context, ChattingActivity::class.java)
+                    intent.putExtra(USER, selected.user)
+                    startActivity(intent)
+                    finish()
                 }
             }
         })
-        contact_allUser.adapter = adapter
+        contact_allUser.adapter = contactAdapter
     }
 }
 
