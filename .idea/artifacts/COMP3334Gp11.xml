@@ -1,0 +1,11 @@
+<component name="ArtifactManager">
+  <artifact type="apk" name="COMP3334Gp11">
+    <output-path>$USER_HOME$/Downloads</output-path>
+    <properties id="android-properties">
+      <options>
+        <option name="keyStoreUrl" value="file://" />
+      </options>
+    </properties>
+    <root id="archive" name="COMP3334Gp11.apk" />
+  </artifact>
+</component>

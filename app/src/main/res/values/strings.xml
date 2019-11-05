@@ -15,4 +15,6 @@
     <string name="send">Send</string>
     <string name="message_from">Message From</string>
     <string name="message_to">Message To</string>
+    <string name="message">message</string>
+    <string name="time">time</string>
 </resources>

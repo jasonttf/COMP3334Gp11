@@ -81,7 +81,7 @@ class RegisterActivity : AppCompatActivity() {
             val picRef = FirebaseStorage.getInstance().getReference("/images/$filename")
             picRef.putFile(userPicUri!!).addOnSuccessListener { 
                 picRef.downloadUrl.addOnSuccessListener {
-                    recordUser(username, it.toString())
+                    recordUser(username, it.toString()) //if no photo, no record in db
                 }.addOnFailureListener { 
                     Log.e("RegisterActivity", "Error: ${it.message}")
                 }.addOnFailureListener {
@@ -90,6 +90,9 @@ class RegisterActivity : AppCompatActivity() {
             }.addOnFailureListener {
                 Log.e("RegisterActivity", "Error: ${it.message}")
             }
+        } else {
+            val userPicUrl = "https://firebasestorage.googleapis.com/v0/b/comp3334-gp-project.appspot.com/o/images%2F0911f781-9498-4cb6-912e-54036062b75c?alt=media&token=5dc13643-484b-46c7-be75-8908775e0df2"
+            recordUser(username, userPicUrl)
         }
     }
 
