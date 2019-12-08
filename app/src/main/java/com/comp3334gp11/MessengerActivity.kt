@@ -15,7 +15,6 @@ import com.xwray.groupie.GroupieViewHolder
 import com.xwray.groupie.Item
 import kotlinx.android.synthetic.main.activity_messenger.*
 import kotlinx.android.synthetic.main.chat_row.view.*
-import java.io.File
 import java.text.SimpleDateFormat
 
 class MessengerActivity : AppCompatActivity() {
@@ -27,7 +26,7 @@ class MessengerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_messenger)
 
         verifyUserStatus()
-        FirebaseAuth.getInstance().uid?.let { getKey(it) }
+        FirebaseAuth.getInstance().uid?.let { showChats(it) }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -57,31 +56,7 @@ class MessengerActivity : AppCompatActivity() {
         }
     }
 
-    private fun getKey(userID: String) {
-        val userRef = FirebaseDatabase.getInstance().getReference("/users")
-        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onCancelled(p0: DatabaseError) {
-                Log.e("ChattingActivity", "Error: $p0")
-            }
-
-            override fun onDataChange(p0: DataSnapshot) {
-                p0.children.forEach {
-                    val temp = it.getValue(User::class.java)
-                    if (temp != null) {
-                        if (temp.uid == userID) {
-                            fromUserN = temp.n
-                        }
-                    }
-                }
-                val fileName = filesDir.path + "key.txt"
-                fromUserD = File(fileName).readText().trim().toInt()
-                showChats(userID)
-            }
-        })
-    }
-
     private fun showChats(userID: String) {
-        val chatMessageAdapter = GroupAdapter<GroupieViewHolder>()
         val messageRef = FirebaseDatabase.getInstance().getReference("/latest_messages/$userID")
         messageRef.addListenerForSingleValueEvent(object: ValueEventListener {
             override fun onCancelled(p0: DatabaseError) {
@@ -94,40 +69,90 @@ class MessengerActivity : AppCompatActivity() {
                     Log.e("messenger", it.toString())
                     val temp = it.getValue(ChatMessages::class.java)
                     if (temp != null) {
-                        val messageEncrypt = MessageEncrypt()
-                        var message = temp.message
-                        //message = messageEncrypt.decryption(message, fromUserD, fromUserN)
-                        val decryptedChatMessage = ChatMessages(temp.chatID, temp.userID, temp.userPicUrl, temp.username, message, temp.time)
-                        allChatMessages.add(decryptedChatMessage)
+                        allChatMessages.add(temp)
                     }
                 }
-                for (i in allChatMessages.size-1 downTo 0)
-                    chatMessageAdapter.add(ChatRow(allChatMessages[i]))
-                chatMessageAdapter.setOnItemClickListener { item, view ->
-                    val selected = item as ChatRow
-                    val toUserID = selected.chatMessage.userID
-                    val toUserRef = FirebaseDatabase.getInstance().getReference("/users")
-                    toUserRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                getMessage(allChatMessages)
+            }
+        })
+    }
+
+    private fun getMessage(allChatMessages: MutableList<ChatMessages>) {
+        val chatMessageAdapter = GroupAdapter<GroupieViewHolder>()
+        val userRef = FirebaseDatabase.getInstance().getReference("/users")
+        val fromID = FirebaseAuth.getInstance().uid
+        val messageEncrypt = MessageEncrypt()
+        var toUserD = 0
+        var toUserN = 0
+        var message = ""
+        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onCancelled(p0: DatabaseError) {
+                Log.e("ChattingActivity", "Error: $p0")
+            }
+
+            override fun onDataChange(p0: DataSnapshot) {
+                for (i in p0.children) {
+                    val temp = i.getValue(User::class.java)
+                    if (temp != null) {
+                        if (temp.uid == fromID) {
+                            fromUserN = temp.n
+                            fromUserD = temp.d
+                            break
+                        }
+                    }
+                }
+                for (i in allChatMessages.size-1 downTo 0) {
+                    userRef.addListenerForSingleValueEvent(object : ValueEventListener {
                         override fun onCancelled(p0: DatabaseError) {
-                            Log.e("MessengerActivity", "Error: $p0")
+                            Log.e("ChattingActivity", "Error: $p0")
                         }
 
                         override fun onDataChange(p0: DataSnapshot) {
-                            for (i in p0.children) {
-                                val user = i.getValue(User::class.java)
-                                if (user != null) {
-                                    if (user.uid == toUserID) {
-                                        val intent = Intent(view.context, ChattingActivity::class.java)
-                                        intent.putExtra(ContactActivity.USER, user)
-                                        startActivity(intent)
+                            for (j in p0.children) {
+                                val temp = j.getValue(User::class.java)
+                                if (temp != null) {
+                                    if (temp.uid == allChatMessages[i].userID) {
+                                        toUserN = temp.n
+                                        toUserD = temp.d
+                                        break
                                     }
                                 }
                             }
+                            message = allChatMessages[i].message
+                            if (allChatMessages[i].fromID == fromID && allChatMessages[i].toID == allChatMessages[i].userID)
+                                message = messageEncrypt.decryption(message, toUserD, toUserN)
+                            else if (allChatMessages[i].fromID == allChatMessages[i].userID && allChatMessages[i].toID == fromID)
+                                message = messageEncrypt.decryption(message, fromUserD, fromUserN)
+                            val chatMessage = ChatMessages(allChatMessages[i].chatID, allChatMessages[i].userID, allChatMessages[i].userPicUrl, allChatMessages[i].username, message, allChatMessages[i].time, allChatMessages[i].fromID, allChatMessages[i].toID)
+                            chatMessageAdapter.add(ChatRow(chatMessage))
                         }
                     })
                 }
             }
         })
+        chatMessageAdapter.setOnItemClickListener { item, view ->
+            val selected = item as ChatRow
+            val toUserID = selected.chatMessage.userID
+            val toUserRef = FirebaseDatabase.getInstance().getReference("/users")
+            toUserRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onCancelled(p0: DatabaseError) {
+                    Log.e("MessengerActivity", "Error: $p0")
+                }
+
+                override fun onDataChange(p0: DataSnapshot) {
+                    for (i in p0.children) {
+                        val user = i.getValue(User::class.java)
+                        if (user != null) {
+                            if (user.uid == toUserID) {
+                                val intent = Intent(view.context, ChattingActivity::class.java)
+                                intent.putExtra(ContactActivity.USER, user)
+                                startActivity(intent)
+                            }
+                        }
+                    }
+                }
+            })
+        }
         messenger_allMessage.adapter = chatMessageAdapter
     }
 }

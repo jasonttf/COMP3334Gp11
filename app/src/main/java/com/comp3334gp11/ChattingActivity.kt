@@ -2,6 +2,7 @@ package com.comp3334gp11
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Base64.encodeToString
 import android.util.Log
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
@@ -12,18 +13,14 @@ import com.xwray.groupie.Item
 import kotlinx.android.synthetic.main.activity_chatting.*
 import kotlinx.android.synthetic.main.from_message.view.*
 import kotlinx.android.synthetic.main.to_messaage.view.*
-import java.io.File
-import java.util.*
 import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
 import javax.crypto.Mac;
-import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 class ChattingActivity : AppCompatActivity() {
     private val messagesAdapter = GroupAdapter<GroupieViewHolder>()
     private var chatID = ""
+    private var toUserD: Int = 0
     private var toUserN: Int = 0
     private var toUserE: Int = 0
     private var fromUserD: Int = 0
@@ -41,6 +38,7 @@ class ChattingActivity : AppCompatActivity() {
             Toast.makeText(this, "Cannot find user", Toast.LENGTH_SHORT).show()
         }
         supportActionBar?.title =  toUser.username
+        toUserD = toUser.d
         toUserE = toUser.e
         toUserN = toUser.n
 
@@ -65,16 +63,16 @@ class ChattingActivity : AppCompatActivity() {
             }
 
             override fun onDataChange(p0: DataSnapshot) {
-                p0.children.forEach {
-                    val temp = it.getValue(User::class.java)
+                for (i in p0.children) {
+                    val temp = i.getValue(User::class.java)
                     if (temp != null) {
                         if (temp.uid == fromID) {
                             fromUserN = temp.n
+                            fromUserD = temp.d
+                            break
                         }
                     }
                 }
-                val fileName = filesDir.path + "key.txt"
-                fromUserD = File(fileName).readText().trim().toInt()
                 getChatID(fromID, toID)
             }
         })
@@ -138,22 +136,21 @@ class ChattingActivity : AppCompatActivity() {
                 val messageEncrypt = MessageEncrypt()
                 val chatMessage = p0.getValue(ChatWithUser::class.java)
                 if (chatMessage != null) {
-                    //var message = chatMessage.text
-                    //message = messageEncrypt.decryption(message, fromUserD, fromUserN)
+                    var message = chatMessage.text
                     if (chatMessage.fromID == FirebaseAuth.getInstance().uid && chatMessage.toID == toID) {
-                        //messagesAdapter.add(MessageToItem(message))
-                        messagesAdapter.add(MessageToItem(chatMessage.text))
+                        message = messageEncrypt.decryption(message, toUserD, toUserN)
+                        messagesAdapter.add(MessageToItem(message))
                     }
                     else if (chatMessage.fromID == toID && chatMessage.toID == FirebaseAuth.getInstance().uid) {
-                        //messagesAdapter.add(MessageFromItem(message))
+                        message = messageEncrypt.decryption(message, fromUserD, fromUserN)
                         // MAC Tag verification
                         val mac = Mac.getInstance("HMACSHA256")
                         mac.init(seckey)
-                        var bytesArrStr = chatMessage.text
-                        var bytesArr = bytesArrStr.toByteArray()
+                        var tempBA = chatMessage.text.toByteArray()
+                        var temp2 = encodeToString(mac.doFinal(tempBA), 0)
 
-                        if(Arrays.equals(bytesArr, chatMessage.text.toByteArray()))
-                            messagesAdapter.add(MessageFromItem(chatMessage.text))
+                        if(temp2.equals(chatMessage.macKey))
+                            messagesAdapter.add(MessageFromItem(message))
                         else {
                             messagesAdapter.add(MessageFromItem("* This message has been modified *"))
                             Log.e("Verify","macKey of Chatroom" + seckey.toString())
@@ -186,13 +183,13 @@ class ChattingActivity : AppCompatActivity() {
         val messageKey = messageRef.key ?: return
         val time = System.currentTimeMillis()
         val messageEncrypt = MessageEncrypt()
-        val message = text//messageEncrypt.encryption(text, toUserE, toUserN)
+        val message = messageEncrypt.encryption(text, toUserE, toUserN)
 
         // MAC Tag generating for each message
         val mac = Mac.getInstance("HMACSHA256")
         mac.init(seckey)
-        var bytesArr = text.toByteArray()
-        var macRes = mac.doFinal(bytesArr).toString()
+        var bytesArr = message.toByteArray()
+        var macRes = encodeToString(mac.doFinal(bytesArr), 0)
 
         val chatWithUser = ChatWithUser(messageKey, message, fromID, toID, time, macRes)
         messageRef.setValue(chatWithUser).addOnSuccessListener {
@@ -238,7 +235,7 @@ class ChattingActivity : AppCompatActivity() {
                                             break
                                         }
                                     }
-                                    val receiver = ChatMessages(chatID, fromID, fromUserPicUrl, fromUsername, text, time)
+                                    val receiver = ChatMessages(chatID, fromID, fromUserPicUrl, fromUsername, text, time, fromID, toID)
                                     receiverlatestMessages.add(receiver)
                                     receiverLatestMessagesRef.setValue(receiverlatestMessages).addOnSuccessListener {
                                         Log.e("ChattingActivity", "receiver latest messages updated")
@@ -273,7 +270,7 @@ class ChattingActivity : AppCompatActivity() {
                                 break
                             }
                         }
-                        val sender = ChatMessages(chatID, toID, toUserPicUrl, toUsername, text, time)
+                        val sender = ChatMessages(chatID, toID, toUserPicUrl, toUsername, text, time, fromID, toID)
                         senderlatestMessages.add(sender)
                         Log.e("s", senderlatestMessages.size.toString())
                         senderLatestMessagesRef.setValue(senderlatestMessages).addOnSuccessListener {

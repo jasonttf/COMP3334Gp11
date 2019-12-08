@@ -106,28 +106,17 @@ class RegisterActivity : AppCompatActivity() {
         }
         N = a1*a2
         ND = (a1-1) * (a2-1)
-        val D = messageEncrypt.generatord(ND,E)
-        val fileName = filesDir.path + "key.txt"
-        Log.e("RegisterActivity", fileName)
-        File(fileName).printWriter().use { out -> out.println(D) }
-        val uid = FirebaseAuth.getInstance().uid
-        val keyRef =  FirebaseStorage.getInstance().getReference("/key/$uid")
-        val file = Uri.fromFile(File(fileName))
-        keyRef.putFile(file).addOnSuccessListener {
-            Log.e("RegisterActivity", "key saved")
-        }.removeOnFailureListener {
-            Log.e("RegisterActivity", "key not saved")
-        }
-        uploadUserPic(username, time, email, E, N)
+        val D = messageEncrypt.generatord(ND, E)
+        uploadUserPic(username, time, email, E, N, D)
     }
 
-    private fun uploadUserPic(username: String, time: Long, email: String, e: Int, n: Int) {
+    private fun uploadUserPic(username: String, time: Long, email: String, e: Int, n: Int, d: Int) {
         if (userPicUri != null) {
             val filename = UUID.randomUUID().toString()
             val picRef = FirebaseStorage.getInstance().getReference("/images/$filename")
             picRef.putFile(userPicUri!!).addOnSuccessListener {
                 picRef.downloadUrl.addOnSuccessListener {
-                    recordUser(username, it.toString(), time, email, e, n) //if no photo, no record in db
+                    recordUser(username, it.toString(), time, email, e, n, d)
                 }.addOnFailureListener {
                     Log.e("RegisterActivity", "Error: ${it.message}")
                 }.addOnFailureListener {
@@ -138,14 +127,14 @@ class RegisterActivity : AppCompatActivity() {
             }
         } else {
             val userPicUrl = "https://firebasestorage.googleapis.com/v0/b/comp3334-gp-project.appspot.com/o/images%2Fdownload.png?alt=media&token=b21e76c7-7b0e-4441-826a-1a46c572e028"
-            recordUser(username, userPicUrl, time, email, e, n)
+            recordUser(username, userPicUrl, time, email, e, n, d)
         }
     }
 
-    private fun recordUser(username: String, picUrl: String, time: Long, email: String, e: Int, n: Int) {
+    private fun recordUser(username: String, picUrl: String, time: Long, email: String, e: Int, n: Int, d: Int) {
         val uid = FirebaseAuth.getInstance().uid ?: ""
         val userRef = FirebaseDatabase.getInstance().getReference("/users/$uid")
-        val user = User(uid, email, username, picUrl, time.toString(), e, n)
+        val user = User(uid, email, username, picUrl, time.toString(), e, n, d)
         userRef.setValue(user).addOnSuccessListener {
             Log.e("RegisterActivity", "Saved user: $user")
         }.addOnFailureListener {
