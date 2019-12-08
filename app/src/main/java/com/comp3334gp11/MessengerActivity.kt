@@ -8,26 +8,26 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.*
 import com.squareup.picasso.Picasso
 import com.xwray.groupie.GroupAdapter
 import com.xwray.groupie.GroupieViewHolder
 import com.xwray.groupie.Item
 import kotlinx.android.synthetic.main.activity_messenger.*
 import kotlinx.android.synthetic.main.chat_row.view.*
+import java.io.File
 import java.text.SimpleDateFormat
 
 class MessengerActivity : AppCompatActivity() {
+    private var fromUserD: Int = 0
+    private var fromUserN: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_messenger)
 
         verifyUserStatus()
-        FirebaseAuth.getInstance().uid?.let { showChats(it) }
+        FirebaseAuth.getInstance().uid?.let { getKey(it) }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -57,6 +57,29 @@ class MessengerActivity : AppCompatActivity() {
         }
     }
 
+    private fun getKey(userID: String) {
+        val userRef = FirebaseDatabase.getInstance().getReference("/users")
+        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onCancelled(p0: DatabaseError) {
+                Log.e("ChattingActivity", "Error: $p0")
+            }
+
+            override fun onDataChange(p0: DataSnapshot) {
+                p0.children.forEach {
+                    val temp = it.getValue(User::class.java)
+                    if (temp != null) {
+                        if (temp.uid == userID) {
+                            fromUserN = temp.n
+                        }
+                    }
+                }
+                val fileName = filesDir.path + "key.txt"
+                fromUserD = File(fileName).readText().trim().toInt()
+                showChats(userID)
+            }
+        })
+    }
+
     private fun showChats(userID: String) {
         val chatMessageAdapter = GroupAdapter<GroupieViewHolder>()
         val messageRef = FirebaseDatabase.getInstance().getReference("/latest_messages/$userID")
@@ -66,12 +89,20 @@ class MessengerActivity : AppCompatActivity() {
             }
 
             override fun onDataChange(p0: DataSnapshot) {
+                var allChatMessages = mutableListOf<ChatMessages>()
                 p0.children.forEach {
-                    val chatMessage = it.getValue(ChatMessages::class.java)
-                    if (chatMessage != null) {
-                        chatMessageAdapter.add(ChatRow(chatMessage))
+                    Log.e("messenger", it.toString())
+                    val temp = it.getValue(ChatMessages::class.java)
+                    if (temp != null) {
+                        val messageEncrypt = MessageEncrypt()
+                        var message = temp.message
+                        //message = messageEncrypt.decryption(message, fromUserD, fromUserN)
+                        val decryptedChatMessage = ChatMessages(temp.chatID, temp.userID, temp.userPicUrl, temp.username, message, temp.time)
+                        allChatMessages.add(decryptedChatMessage)
                     }
                 }
+                for (i in allChatMessages.size-1 downTo 0)
+                    chatMessageAdapter.add(ChatRow(allChatMessages[i]))
                 chatMessageAdapter.setOnItemClickListener { item, view ->
                     val selected = item as ChatRow
                     val toUserID = selected.chatMessage.userID
@@ -97,7 +128,6 @@ class MessengerActivity : AppCompatActivity() {
                 }
             }
         })
-
         messenger_allMessage.adapter = chatMessageAdapter
     }
 }

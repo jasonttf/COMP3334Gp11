@@ -12,10 +12,24 @@ import com.xwray.groupie.Item
 import kotlinx.android.synthetic.main.activity_chatting.*
 import kotlinx.android.synthetic.main.from_message.view.*
 import kotlinx.android.synthetic.main.to_messaage.view.*
+import java.io.File
+import java.util.*
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.Mac;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 class ChattingActivity : AppCompatActivity() {
     private val messagesAdapter = GroupAdapter<GroupieViewHolder>()
     private var chatID = ""
+    private var toUserN: Int = 0
+    private var toUserE: Int = 0
+    private var fromUserD: Int = 0
+    private var fromUserN: Int = 0
+    private var seckey = SecretKeySpec(ByteArray(1), "HMACSHA256")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chatting)
@@ -27,10 +41,12 @@ class ChattingActivity : AppCompatActivity() {
             Toast.makeText(this, "Cannot find user", Toast.LENGTH_SHORT).show()
         }
         supportActionBar?.title =  toUser.username
+        toUserE = toUser.e
+        toUserN = toUser.n
 
         chatting_messages.adapter = messagesAdapter
 
-        getChatID(fromID, toUser.uid)
+        getKey(fromID, toUser.uid)
 
         chatting_sendButton.setOnClickListener {
             val text = chatting_enterMassage.text.toString()//.trim()
@@ -39,6 +55,29 @@ class ChattingActivity : AppCompatActivity() {
             chatting_enterMassage.text.clear()
             chatting_messages.scrollToPosition(messagesAdapter.itemCount - 1)
         }
+    }
+
+    private fun getKey(fromID: String, toID: String) {
+        val userRef = FirebaseDatabase.getInstance().getReference("/users")
+        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onCancelled(p0: DatabaseError) {
+                Log.e("ChattingActivity", "Error: $p0")
+            }
+
+            override fun onDataChange(p0: DataSnapshot) {
+                p0.children.forEach {
+                    val temp = it.getValue(User::class.java)
+                    if (temp != null) {
+                        if (temp.uid == fromID) {
+                            fromUserN = temp.n
+                        }
+                    }
+                }
+                val fileName = filesDir.path + "key.txt"
+                fromUserD = File(fileName).readText().trim().toInt()
+                getChatID(fromID, toID)
+            }
+        })
     }
 
     private fun getChatID(fromID: String, toID: String) {
@@ -70,13 +109,21 @@ class ChattingActivity : AppCompatActivity() {
                     }
                    if (foundFrom && foundTo)
                        break
+                   Log.e("df", chatID)
                 }
                 if (!foundFrom || !foundTo) {
-                    Log.e("ChattingActivity", "new chat room")
+                    Log.e("ChattingActivity", "new chat room: $cID")
                     val newRoomRef = FirebaseDatabase.getInstance().getReference("/chat_room").push()
                     val users =  mutableListOf(fromID, toID)
                     cID = newRoomRef.key.toString()
-                    val chatRoom = ChatRoom(cID, users)
+                    chatID = cID
+                    var kgen = KeyGenerator.getInstance("HMACSHA256")
+                    var skey = kgen.generateKey()
+                    var tempKey = skey.getEncoded()
+                    var keyString = tempKey.toString()
+                    val chatRoom = ChatRoom(cID, users, keyString)
+                    Log.e("MACTag",  "New Gen" + keyString)
+                    Log.e("ChattingActivity", chatID)
                     newRoomRef.setValue(chatRoom)
                 }
                 getMessages(cID, toID)
@@ -88,13 +135,29 @@ class ChattingActivity : AppCompatActivity() {
         val messagesFromRef = FirebaseDatabase.getInstance().getReference("/messages/$cID")
         messagesFromRef.addChildEventListener(object: ChildEventListener {
             override fun onChildAdded(p0: DataSnapshot, p1: String?) {
+                val messageEncrypt = MessageEncrypt()
                 val chatMessage = p0.getValue(ChatWithUser::class.java)
                 if (chatMessage != null) {
+                    //var message = chatMessage.text
+                    //message = messageEncrypt.decryption(message, fromUserD, fromUserN)
                     if (chatMessage.fromID == FirebaseAuth.getInstance().uid && chatMessage.toID == toID) {
+                        //messagesAdapter.add(MessageToItem(message))
                         messagesAdapter.add(MessageToItem(chatMessage.text))
                     }
                     else if (chatMessage.fromID == toID && chatMessage.toID == FirebaseAuth.getInstance().uid) {
-                        messagesAdapter.add(MessageFromItem(chatMessage.text))
+                        //messagesAdapter.add(MessageFromItem(message))
+                        // MAC Tag verification
+                        val mac = Mac.getInstance("HMACSHA256")
+                        mac.init(seckey)
+                        var bytesArrStr = chatMessage.text
+                        var bytesArr = bytesArrStr.toByteArray()
+
+                        if(Arrays.equals(bytesArr, chatMessage.text.toByteArray()))
+                            messagesAdapter.add(MessageFromItem(chatMessage.text))
+                        else {
+                            messagesAdapter.add(MessageFromItem("* This message has been modified *"))
+                            Log.e("Verify","macKey of Chatroom" + seckey.toString())
+                        }
                     }
                 }
                 chatting_messages.scrollToPosition(messagesAdapter.itemCount - 1)
@@ -122,10 +185,20 @@ class ChattingActivity : AppCompatActivity() {
         val messageRef = FirebaseDatabase.getInstance().getReference("/messages/$chatID").push()
         val messageKey = messageRef.key ?: return
         val time = System.currentTimeMillis()
-        val chatWithUser = ChatWithUser(messageKey, text, fromID, toID, time)
+        val messageEncrypt = MessageEncrypt()
+        val message = text//messageEncrypt.encryption(text, toUserE, toUserN)
+
+        // MAC Tag generating for each message
+        val mac = Mac.getInstance("HMACSHA256")
+        mac.init(seckey)
+        var bytesArr = text.toByteArray()
+        var macRes = mac.doFinal(bytesArr).toString()
+
+        val chatWithUser = ChatWithUser(messageKey, message, fromID, toID, time, macRes)
         messageRef.setValue(chatWithUser).addOnSuccessListener {
             Log.e("ChattingActivity", "message sent")
-            updateLatestMessages(fromID, text, toID, toUserPicUrl, toUsername, time)
+            Log.e("ChattingActivity", macRes)
+            updateLatestMessages(fromID, message, toID, toUserPicUrl, toUsername, time)
         }.addOnFailureListener {
             Log.e("ChattingActivity", "Error: ${it.message}")
         }
@@ -145,26 +218,71 @@ class ChattingActivity : AppCompatActivity() {
                         if (fromUser.uid == fromID) {
                             val fromUserPicUrl = fromUser.userPicUrl
                             val fromUsername = fromUser.username
-                            val receiverLatestMessagesRef = FirebaseDatabase.getInstance().getReference("/latest_messages/$toID/$chatID")
-                            receiverLatestMessagesRef.removeValue()
-                            val receiver = ChatMessages(fromID, fromUserPicUrl, fromUsername, text, time)
-                            receiverLatestMessagesRef.setValue(receiver).addOnSuccessListener {
-                                Log.e("ChattingActivity", "receiever latest messages updated")
-                            }.addOnFailureListener {
-                                Log.e("ChattingActivity", "Error: ${it.message}")
-                            }
+                            val receiverLatestMessagesRef = FirebaseDatabase.getInstance().getReference("/latest_messages/$toID")
+                            receiverLatestMessagesRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                                override fun onCancelled(p0: DatabaseError) {
+                                    Log.e("ChattingActivity", "Error: $p0")
+                                }
+
+                                override fun onDataChange(p0: DataSnapshot) {
+                                    var receiverlatestMessages = mutableListOf<ChatMessages>()
+                                    p0.children.forEach {
+                                        val temp = it.getValue(ChatMessages::class.java)
+                                        if (temp != null) {
+                                            receiverlatestMessages.add(temp)
+                                        }
+                                    }
+                                    for (l in receiverlatestMessages) {
+                                        if (l.chatID == chatID) {
+                                            receiverlatestMessages.remove(l)
+                                            break
+                                        }
+                                    }
+                                    val receiver = ChatMessages(chatID, fromID, fromUserPicUrl, fromUsername, text, time)
+                                    receiverlatestMessages.add(receiver)
+                                    receiverLatestMessagesRef.setValue(receiverlatestMessages).addOnSuccessListener {
+                                        Log.e("ChattingActivity", "receiver latest messages updated")
+                                    }.addOnFailureListener {
+                                        Log.e("ChattingActivity", "Error: ${it.message}")
+                                    }
+                                }
+                            })
                             break
                         }
                     }
                 }
-                val senderLatestMessagesRef = FirebaseDatabase.getInstance().getReference("/latest_messages/$fromID/$chatID")
-                senderLatestMessagesRef.removeValue()
-                val sender = ChatMessages(toID, toUserPicUrl, toUsername, text, time)
-                senderLatestMessagesRef.setValue(sender).addOnSuccessListener {
-                    Log.e("ChattingActivity", "sender latest messages updated")
-                }.addOnFailureListener {
-                    Log.e("ChattingActivity", "Error: ${it.message}")
-                }
+                val senderLatestMessagesRef = FirebaseDatabase.getInstance().getReference("/latest_messages/$fromID")
+                senderLatestMessagesRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                    override fun onCancelled(p0: DatabaseError) {
+                        Log.e("ChattingActivity", "Error: $p0")
+                    }
+
+                    override fun onDataChange(p0: DataSnapshot) {
+                        var senderlatestMessages = mutableListOf<ChatMessages>()
+                        p0.children.forEach {
+                            val temp = it.getValue(ChatMessages::class.java)
+                            if (temp != null) {
+                                senderlatestMessages.add(temp)
+                            }
+                        }
+                        for (l in senderlatestMessages) {
+                            Log.e("dd", l   .chatID)
+                            Log.e("ss", chatID)
+                            if (l.chatID == chatID) {
+                                senderlatestMessages.remove(l)
+                                break
+                            }
+                        }
+                        val sender = ChatMessages(chatID, toID, toUserPicUrl, toUsername, text, time)
+                        senderlatestMessages.add(sender)
+                        Log.e("s", senderlatestMessages.size.toString())
+                        senderLatestMessagesRef.setValue(senderlatestMessages).addOnSuccessListener {
+                            Log.e("ChattingActivity", "sender latest messages updated")
+                        }.addOnFailureListener {
+                            Log.e("ChattingActivity", "Error: ${it.message}")
+                        }
+                    }
+                })
             }
         })
     }
